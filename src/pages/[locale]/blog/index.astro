@@ -1,0 +1,57 @@
+---
+// src/pages/[locale]/blog/index.astro — 非默认语言的博客列表页
+import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import ArticleCard from "../../../components/ArticleCard.astro";
+import Breadcrumbs from "../../../components/Breadcrumbs.astro";
+import { siteConfig } from "../../../config/site";
+import type { Locale } from "../../../config/site";
+
+export async function getStaticPaths() {
+  const posts = await getCollection(
+    "blog",
+    (entry) => entry.data.locale !== "en" && !entry.data.draft,
+  );
+
+  const locales = [...new Set(posts.map((post) => post.data.locale))];
+
+  return locales.map((locale) => ({
+    params: { locale },
+    props: {
+      posts: posts
+        .filter((post) => post.data.locale === locale)
+        .sort(
+          (a, b) =>
+            b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+        ),
+    },
+  }));
+}
+
+interface Props {
+  posts: CollectionEntry<"blog">[];
+}
+
+const { posts } = Astro.props;
+const locale = Astro.params.locale as Locale;
+---
+
+<BaseLayout
+  title={`Blog — ${siteConfig.name}`}
+  description={`Articles from ${siteConfig.name}.`}
+  locale={locale}
+>
+  <div class="container">
+    <Breadcrumbs
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Blog", href: `/${locale}/blog/` },
+      ]}
+    />
+    <h1>Blog</h1>
+    <div class="card-grid section">
+      {posts.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>

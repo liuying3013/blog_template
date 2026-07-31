@@ -1,0 +1,58 @@
+---
+// src/pages/index.astro
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ArticleCard from "../components/ArticleCard.astro";
+import WhatsAppCTA from "../components/WhatsAppCTA.astro";
+import { siteConfig } from "../config/site";
+
+const posts = (
+  await getCollection(
+    "blog",
+    (entry) => entry.data.locale === "en" && !entry.data.draft,
+  )
+).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+);
+
+const featured = posts.filter((post) => post.data.featured).slice(0, 3);
+const latest = posts.slice(0, 6);
+---
+
+<BaseLayout
+  title={`${siteConfig.name} — ${siteConfig.tagline}`}
+  description={siteConfig.tagline}
+>
+  <section class="hero">
+    <div class="container">
+      <h1>{siteConfig.name}</h1>
+      <p>{siteConfig.tagline}</p>
+      <WhatsAppCTA
+        label={siteConfig.defaultCta.label}
+        topic={siteConfig.defaultCta.topic}
+        sourceCode={siteConfig.defaultCta.sourceCode}
+        placement="hero"
+      />
+    </div>
+  </section>
+
+  {
+    featured.length > 0 && (
+      <section class="section container">
+        <h2 class="section-title">Featured Articles</h2>
+        <div class="card-grid">
+          {featured.map((post) => (
+            <ArticleCard post={post} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <section class="section container">
+    <h2 class="section-title">Latest Articles</h2>
+    <div class="card-grid">
+      {latest.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </section>
+</BaseLayout>

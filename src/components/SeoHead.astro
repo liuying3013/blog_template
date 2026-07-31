@@ -1,0 +1,107 @@
+---
+// src/components/SeoHead.astro
+// Title / Description / Canonical / OG / Twitter / hreflang / JSON-LD 统一出口
+import { siteConfig } from "../config/site";
+import type { Locale } from "../config/site";
+
+export interface Alternate {
+  locale: Locale;
+  path: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  noindex?: boolean;
+  canonical?: string;
+  ogType?: "website" | "article";
+  ogImage?: string;
+  alternates?: Alternate[];
+  jsonLd?: object[];
+}
+
+const {
+  title,
+  description,
+  noindex = false,
+  canonical,
+  ogType = "website",
+  ogImage,
+  alternates = [],
+  jsonLd = [],
+} = Astro.props;
+
+const base = Astro.site ?? new URL(siteConfig.siteUrl);
+
+const canonicalUrl =
+  canonical ?? new URL(Astro.url.pathname, base).toString();
+
+const ogImageUrl = ogImage
+  ? new URL(ogImage, base).toString()
+  : undefined;
+
+const xDefault = alternates.find((alt) => alt.locale === "en");
+
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: siteConfig.name,
+  url: base.toString(),
+};
+
+const jsonLdBlocks = [organizationJsonLd, ...jsonLd];
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+<link rel="canonical" href={canonicalUrl} />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link
+  rel="alternate"
+  type="application/rss+xml"
+  title={siteConfig.name}
+  href="/rss.xml"
+/>
+{
+  alternates.map((alt) => (
+    <link
+      rel="alternate"
+      hreflang={alt.locale}
+      href={new URL(alt.path, base).toString()}
+    />
+  ))
+}
+{
+  xDefault && (
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL(xDefault.path, base).toString()}
+    />
+  )
+}
+<meta property="og:type" content={ogType} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalUrl} />
+<meta property="og:site_name" content={siteConfig.name} />
+{ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+<meta
+  name="twitter:card"
+  content={ogImageUrl ? "summary_large_image" : "summary"}
+/>
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+{ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
+{
+  jsonLdBlocks.map((block) => (
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(block)}
+    />
+  ))
+}

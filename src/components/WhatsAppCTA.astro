@@ -1,0 +1,72 @@
+---
+// src/components/WhatsAppCTA.astro
+import { siteConfig } from "../config/site";
+import type { Locale } from "../config/site";
+
+interface Props {
+  label: string;
+  topic: string;
+  sourceCode: string;
+  placement:
+    | "header"
+    | "hero"
+    | "article-start"
+    | "article-middle"
+    | "article-end"
+    | "mobile-bar"
+    | "floating";
+  locale?: Locale;
+  class?: string;
+}
+
+const {
+  label,
+  topic,
+  sourceCode,
+  placement,
+  locale = "en",
+  class: className = "",
+} = Astro.props;
+
+const number =
+  siteConfig.whatsapp.numbersByLocale[locale] ??
+  siteConfig.whatsapp.defaultNumber;
+
+const cleanNumber = number.replace(/\D/g, "");
+
+const baseUrl =
+  Astro.site ?? new URL(siteConfig.siteUrl);
+
+const pageUrl = new URL(
+  Astro.url.pathname,
+  baseUrl,
+).toString();
+
+const message = [
+  `Hello, I am interested in ${topic}.`,
+  "",
+  `Reference: ${sourceCode}-${placement.toUpperCase()}`,
+  `Page: ${pageUrl}`,
+  "",
+  "Please share more information, MOQ and current pricing.",
+].join("\n");
+
+const href =
+  `https://wa.me/${cleanNumber}` +
+  `?text=${encodeURIComponent(message)}`;
+---
+
+<a
+  href={href}
+  target="_blank"
+  rel="noopener noreferrer"
+  class:list={["whatsapp-cta", className]}
+  data-whatsapp-cta
+  data-whatsapp-topic={topic}
+  data-whatsapp-source={sourceCode}
+  data-whatsapp-placement={placement}
+  data-whatsapp-locale={locale}
+  aria-label={`${label} via WhatsApp`}
+>
+  {label}
+</a>

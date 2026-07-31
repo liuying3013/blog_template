@@ -1,0 +1,38 @@
+---
+// src/components/Header.astro
+import { mainNav } from "../config/navigation";
+import { siteConfig } from "../config/site";
+import type { Locale } from "../config/site";
+import WhatsAppCTA from "./WhatsAppCTA.astro";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = "en" } = Astro.props;
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/">{siteConfig.name}</a>
+    <nav aria-label="Main navigation">
+      <ul class="main-nav">
+        {
+          mainNav.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <WhatsAppCTA
+      class="header-cta"
+      label={siteConfig.defaultCta.label}
+      topic={siteConfig.defaultCta.topic}
+      sourceCode={siteConfig.defaultCta.sourceCode}
+      placement="header"
+      locale={locale}
+    />
+  </div>
+</header>

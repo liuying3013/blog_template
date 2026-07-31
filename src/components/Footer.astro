@@ -1,0 +1,27 @@
+---
+// src/components/Footer.astro
+import { footerNav } from "../config/navigation";
+import { siteConfig } from "../config/site";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <p class="footer-brand">{siteConfig.name}</p>
+    <nav aria-label="Footer navigation">
+      <ul class="footer-nav">
+        {
+          footerNav.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <p class="footer-copy">
+      © {year} {siteConfig.name}. All rights reserved.
+    </p>
+  </div>
+</footer>

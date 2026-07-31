@@ -1,0 +1,57 @@
+---
+// src/pages/tag/[tag].astro
+import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { siteConfig } from "../../config/site";
+
+export async function getStaticPaths() {
+  const posts = await getCollection(
+    "blog",
+    (entry) => entry.data.locale === "en" && !entry.data.draft,
+  );
+
+  const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+
+  return tags.map((tag) => ({
+    params: { tag },
+    props: {
+      tag,
+      posts: posts
+        .filter((post) => post.data.tags.includes(tag))
+        .sort(
+          (a, b) =>
+            b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+        ),
+    },
+  }));
+}
+
+interface Props {
+  tag: string;
+  posts: CollectionEntry<"blog">[];
+}
+
+const { tag, posts } = Astro.props;
+---
+
+<BaseLayout
+  title={`#${tag} — ${siteConfig.name}`}
+  description={`Articles tagged with ${tag} from ${siteConfig.name}.`}
+>
+  <div class="container">
+    <Breadcrumbs
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Blog", href: "/blog/" },
+        { label: `#${tag}`, href: `/tag/${tag}/` },
+      ]}
+    />
+    <h1>#{tag}</h1>
+    <div class="card-grid section">
+      {posts.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>

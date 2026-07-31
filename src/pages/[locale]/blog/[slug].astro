@@ -1,0 +1,33 @@
+---
+// src/pages/[locale]/blog/[slug].astro — 非默认语言文章页
+import { getCollection, render } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import ArticleLayout from "../../../layouts/ArticleLayout.astro";
+import { localeFromId, slugFromId } from "../../../lib/paths.mjs";
+
+export async function getStaticPaths() {
+  const posts = await getCollection(
+    "blog",
+    (entry) => entry.data.locale !== "en" && !entry.data.draft,
+  );
+
+  return posts.map((post) => ({
+    params: {
+      locale: localeFromId(post.id),
+      slug: slugFromId(post.id),
+    },
+    props: { post },
+  }));
+}
+
+interface Props {
+  post: CollectionEntry<"blog">;
+}
+
+const { post } = Astro.props;
+const { Content, headings } = await render(post);
+---
+
+<ArticleLayout post={post} headings={headings}>
+  <Content />
+</ArticleLayout>

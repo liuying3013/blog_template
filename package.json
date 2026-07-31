@@ -1,0 +1,28 @@
+{
+  "name": "b2b-content-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "validate:content": "node scripts/validate-content.mjs && node scripts/validate-links.mjs",
+    "validate:seo": "node scripts/validate-seo.mjs",
+    "build": "astro build && node scripts/validate-seo.mjs",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^7.0.5",
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^7.1.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "gray-matter": "^4.0.3",
+    "typescript": "^6.0.3"
+  }
+}

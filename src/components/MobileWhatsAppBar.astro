@@ -1,0 +1,33 @@
+---
+// src/components/MobileWhatsAppBar.astro
+// 移动端底部固定栏——移动端唯一的固定 WhatsApp 入口
+// （不与悬浮按钮、弹窗同时出现，见方案 §9.5）
+import { siteConfig } from "../config/site";
+import type { Locale } from "../config/site";
+import WhatsAppCTA from "./WhatsAppCTA.astro";
+
+interface Props {
+  locale?: Locale;
+  cta?: {
+    label: string;
+    topic: string;
+    sourceCode: string;
+  };
+}
+
+const {
+  locale = "en",
+  cta = siteConfig.defaultCta,
+} = Astro.props;
+---
+
+<div class="mobile-whatsapp-bar">
+  <WhatsAppCTA
+    class="mobile-whatsapp-cta"
+    label={cta.label}
+    topic={cta.topic}
+    sourceCode={cta.sourceCode}
+    placement="mobile-bar"
+    locale={locale}
+  />
+</div>

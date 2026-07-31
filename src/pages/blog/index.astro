@@ -1,0 +1,35 @@
+---
+// src/pages/blog/index.astro
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { siteConfig } from "../../config/site";
+
+const posts = (
+  await getCollection(
+    "blog",
+    (entry) => entry.data.locale === "en" && !entry.data.draft,
+  )
+).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+);
+---
+
+<BaseLayout
+  title={`Blog — ${siteConfig.name}`}
+  description={`Sourcing guides, product knowledge and industry insights from ${siteConfig.name}.`}
+>
+  <div class="container">
+    <Breadcrumbs
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Blog", href: "/blog/" },
+      ]}
+    />
+    <h1>Blog</h1>
+    <div class="card-grid section">
+      {posts.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>

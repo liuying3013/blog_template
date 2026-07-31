@@ -1,0 +1,184 @@
+---
+// src/layouts/ArticleLayout.astro
+import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import type { MarkdownHeading } from "astro";
+import BaseLayout from "./BaseLayout.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import TableOfContents from "../components/TableOfContents.astro";
+import ArticleCTA from "../components/ArticleCTA.astro";
+import RelatedArticles from "../components/RelatedArticles.astro";
+import FAQ from "../components/FAQ.astro";
+import type { Alternate } from "../components/SeoHead.astro";
+import { siteConfig } from "../config/site";
+import { authors, categories } from "../config/taxonomies.mjs";
+import { blogUrlPath, slugFromId } from "../lib/paths.mjs";
+
+interface Props {
+  post: CollectionEntry<"blog">;
+  headings: MarkdownHeading[];
+}
+
+const { post, headings } = Astro.props;
+const { data } = post;
+const locale = data.locale;
+const path = blogUrlPath(locale, slugFromId(post.id));
+
+const allPosts = await getCollection("blog", (entry) => !entry.data.draft);
+
+// hreflang：同一 translationKey 的所有语言版本互相回链
+const alternates: Alternate[] = allPosts
+  .filter((entry) => entry.data.translationKey === data.translationKey)
+  .map((entry) => ({
+    locale: entry.data.locale,
+    path: blogUrlPath(entry.data.locale, slugFromId(entry.id)),
+  }));
+
+const related = allPosts
+  .filter(
+    (entry) =>
+      entry.data.locale === locale &&
+      entry.data.category === data.category &&
+      entry.id !== post.id,
+  )
+  .sort(
+    (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+  )
+  .slice(0, 3);
+
+const author = authors.find((a) => a.slug === data.author);
+const category = categories.find((c) => c.slug === data.category);
+
+const base = Astro.site ?? new URL(siteConfig.siteUrl);
+const canonical = data.canonical ?? new URL(path, base).toString();
+
+const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: data.title,
+  description: data.description,
+  image: new URL(data.featuredImage, base).toString(),
+  datePublished: data.publishedAt.toISOString(),
+  dateModified: (data.updatedAt ?? data.publishedAt).toISOString(),
+  author: {
+    "@type": "Person",
+    name: author?.name ?? data.author,
+  },
+  publisher: {
+    "@type": "Organization",
+    name: siteConfig.name,
+    url: base.toString(),
+  },
+  mainEntityOfPage: canonical,
+};
+
+const breadcrumbItems = [
+  { label: "Home", href: "/" },
+  { label: "Blog", href: locale === "en" ? "/blog/" : `/${locale}/blog/` },
+  { label: data.title, href: path },
+];
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  locale={locale}
+  noindex={data.noindex}
+  canonical={canonical}
+  ogType="article"
+  ogImage={data.featuredImage}
+  alternates={alternates}
+  jsonLd={[articleJsonLd]}
+>
+  <article class="container article">
+    <Breadcrumbs items={breadcrumbItems} />
+
+    <header class="article-header">
+      <p class="article-meta">
+        <a href={`/category/${data.category}/`}>
+          {category?.title ?? data.category}
+        </a>
+        <span aria-hidden="true">·</span>
+        <time datetime={data.publishedAt.toISOString()}>
+          {formatDate(data.publishedAt)}
+        </time>
+        {
+          data.updatedAt && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>
+                Updated{" "}
+                <time datetime={data.updatedAt.toISOString()}>
+                  {formatDate(data.updatedAt)}
+                </time>
+              </span>
+            </>
+          )
+        }
+        <span aria-hidden="true">·</span>
+        <a href={`/author/${data.author}/`}>{author?.name ?? data.author}</a>
+      </p>
+      <h1>{data.title}</h1>
+      <p class="article-lead">{data.description}</p>
+      <img
+        class="article-hero"
+        src={data.featuredImage}
+        alt={data.featuredImageAlt}
+        width="1600"
+        height="900"
+      />
+    </header>
+
+    {
+      data.cta && (
+        <ArticleCTA cta={data.cta} locale={locale} placement="article-start" />
+      )
+    }
+
+    <div class="article-body-grid">
+      <TableOfContents headings={headings} />
+      <div class="article-body">
+        <slot />
+      </div>
+    </div>
+
+    {
+      data.cta && (
+        <ArticleCTA cta={data.cta} locale={locale} placement="article-end" />
+      )
+    }
+
+    {data.faq && <FAQ items={data.faq} />}
+
+    {
+      data.sources && data.sources.length > 0 && (
+        <section class="article-sources">
+          <h2>Sources</h2>
+          <ul>
+            {data.sources.map((source) => (
+              <li>
+                <a
+                  href={source.url}
+                  rel="nofollow noopener"
+                  target="_blank"
+                >
+                  {source.title}
+                </a>
+                {source.publisher && ` — ${source.publisher}`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <div class="article-tags">
+      {data.tags.map((tag) => <a href={`/tag/${tag}/`}>#{tag}</a>)}
+    </div>
+
+    <RelatedArticles posts={related} />
+  </article>
+</BaseLayout>

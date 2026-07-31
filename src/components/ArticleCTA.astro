@@ -1,0 +1,28 @@
+---
+// src/components/ArticleCTA.astro
+// 文章内 CTA：使用 Frontmatter 的 cta 字段
+import type { Locale } from "../config/site";
+import WhatsAppCTA from "./WhatsAppCTA.astro";
+
+interface Props {
+  cta: {
+    label: string;
+    topic: string;
+    sourceCode: string;
+  };
+  locale: Locale;
+  placement: "article-start" | "article-middle" | "article-end";
+}
+
+const { cta, locale, placement } = Astro.props;
+---
+
+<div class="article-cta">
+  <WhatsAppCTA
+    label={cta.label}
+    topic={cta.topic}
+    sourceCode={cta.sourceCode}
+    placement={placement}
+    locale={locale}
+  />
+</div>

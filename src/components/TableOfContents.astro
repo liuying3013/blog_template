@@ -1,0 +1,29 @@
+---
+// src/components/TableOfContents.astro
+import type { MarkdownHeading } from "astro";
+
+interface Props {
+  headings: MarkdownHeading[];
+}
+
+const { headings } = Astro.props;
+
+const tocHeadings = headings.filter(
+  (heading) => heading.depth >= 2 && heading.depth <= 3,
+);
+---
+
+{
+  tocHeadings.length >= 2 && (
+    <nav class="table-of-contents" aria-label="Table of contents">
+      <p class="toc-title">Contents</p>
+      <ul>
+        {tocHeadings.map((heading) => (
+          <li class={`toc-depth-${heading.depth}`}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}

@@ -1,0 +1,32 @@
+---
+// src/components/DesktopWhatsAppButton.astro
+// 桌面端右下角轻量悬浮按钮（移动端隐藏，见 global.css）
+import { siteConfig } from "../config/site";
+import type { Locale } from "../config/site";
+import WhatsAppCTA from "./WhatsAppCTA.astro";
+
+interface Props {
+  locale?: Locale;
+  cta?: {
+    label: string;
+    topic: string;
+    sourceCode: string;
+  };
+}
+
+const {
+  locale = "en",
+  cta = siteConfig.defaultCta,
+} = Astro.props;
+---
+
+<div class="desktop-whatsapp-button">
+  <WhatsAppCTA
+    class="floating-whatsapp-cta"
+    label={cta.label}
+    topic={cta.topic}
+    sourceCode={cta.sourceCode}
+    placement="floating"
+    locale={locale}
+  />
+</div>

@@ -1,0 +1,111 @@
+---
+// src/layouts/BaseLayout.astro
+import "../styles/global.css";
+import SeoHead from "../components/SeoHead.astro";
+import type { Alternate } from "../components/SeoHead.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import MobileWhatsAppBar from "../components/MobileWhatsAppBar.astro";
+import DesktopWhatsAppButton from "../components/DesktopWhatsAppButton.astro";
+import type { Locale } from "../config/site";
+
+interface Props {
+  title: string;
+  description: string;
+  locale?: Locale;
+  noindex?: boolean;
+  canonical?: string;
+  ogType?: "website" | "article";
+  ogImage?: string;
+  alternates?: Alternate[];
+  jsonLd?: object[];
+}
+
+const {
+  title,
+  description,
+  locale = "en",
+  noindex = false,
+  canonical,
+  ogType = "website",
+  ogImage,
+  alternates = [],
+  jsonLd = [],
+} = Astro.props;
+
+const gtmId = import.meta.env.PUBLIC_GTM_ID;
+const dir = locale === "ar" ? "rtl" : "ltr";
+---
+
+<!doctype html>
+<html lang={locale} dir={dir}>
+  <head>
+    <SeoHead
+      title={title}
+      description={description}
+      noindex={noindex}
+      canonical={canonical}
+      ogType={ogType}
+      ogImage={ogImage}
+      alternates={alternates}
+      jsonLd={jsonLd}
+    />
+    {
+      gtmId && (
+        <script is:inline define:vars={{ gtmId }}>
+          (function (w, d, s, l, i) {
+            w[l] = w[l] || [];
+            w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+            var f = d.getElementsByTagName(s)[0],
+              j = d.createElement(s),
+              dl = l != "dataLayer" ? "&l=" + l : "";
+            j.async = true;
+            j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+            f.parentNode.insertBefore(j, f);
+          })(window, document, "script", "dataLayer", gtmId);
+        </script>
+      )
+    }
+  </head>
+  <body>
+    {
+      gtmId && (
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+            height="0"
+            width="0"
+            style="display:none;visibility:hidden"
+            title="Google Tag Manager"
+          />
+        </noscript>
+      )
+    }
+    <Header locale={locale} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+    <MobileWhatsAppBar locale={locale} />
+    <DesktopWhatsAppButton locale={locale} />
+    <script is:inline>
+      document.addEventListener("click", function (event) {
+        const element = event.target.closest("[data-whatsapp-cta]");
+
+        if (!element) return;
+
+        window.dataLayer = window.dataLayer || [];
+
+        window.dataLayer.push({
+          event: "whatsapp_click",
+          page_path: window.location.pathname,
+          page_title: document.title,
+          whatsapp_topic: element.dataset.whatsappTopic || "",
+          whatsapp_source: element.dataset.whatsappSource || "",
+          cta_placement: element.dataset.whatsappPlacement || "",
+          page_locale: element.dataset.whatsappLocale || "",
+        });
+      });
+    </script>
+  </body>
+</html>

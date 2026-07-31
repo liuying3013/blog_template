@@ -1,0 +1,24 @@
+---
+// src/components/RelatedArticles.astro
+import type { CollectionEntry } from "astro:content";
+import ArticleCard from "./ArticleCard.astro";
+
+interface Props {
+  posts: CollectionEntry<"blog">[];
+}
+
+const { posts } = Astro.props;
+---
+
+{
+  posts.length > 0 && (
+    <section class="related-articles">
+      <h2>Related Articles</h2>
+      <div class="card-grid">
+        {posts.map((post) => (
+          <ArticleCard post={post} />
+        ))}
+      </div>
+    </section>
+  )
+}

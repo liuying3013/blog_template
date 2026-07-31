@@ -1,0 +1,14 @@
+# Example Brand
+
+> B2B content site: sourcing guides, product knowledge and industry insights
+> from a China-based manufacturer. Inquiries are handled via WhatsApp.
+
+## Blog
+
+- [Blog index](/blog/): all articles
+- [Sourcing Guides](/category/sourcing-guides/): practical import and sourcing guides
+
+## Feeds
+
+- [RSS](/rss.xml)
+- [Sitemap](/sitemap-index.xml)

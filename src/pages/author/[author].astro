@@ -1,0 +1,62 @@
+---
+// src/pages/author/[author].astro
+import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { siteConfig } from "../../config/site";
+import { authors } from "../../config/taxonomies.mjs";
+
+export async function getStaticPaths() {
+  const posts = await getCollection(
+    "blog",
+    (entry) => entry.data.locale === "en" && !entry.data.draft,
+  );
+
+  return authors
+    .filter((author) =>
+      posts.some((post) => post.data.author === author.slug),
+    )
+    .map((author) => ({
+      params: { author: author.slug },
+      props: {
+        author,
+        posts: posts
+          .filter((post) => post.data.author === author.slug)
+          .sort(
+            (a, b) =>
+              b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+          ),
+      },
+    }));
+}
+
+interface Props {
+  author: (typeof authors)[number];
+  posts: CollectionEntry<"blog">[];
+}
+
+const { author, posts } = Astro.props;
+---
+
+<BaseLayout
+  title={`${author.name} — ${siteConfig.name}`}
+  description={author.bio}
+>
+  <div class="container">
+    <Breadcrumbs
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Blog", href: "/blog/" },
+        { label: author.name, href: `/author/${author.slug}/` },
+      ]}
+    />
+    <h1>{author.name}</h1>
+    <p class="article-meta">{author.role}</p>
+    <p>{author.bio}</p>
+    <div class="card-grid section">
+      {posts.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>

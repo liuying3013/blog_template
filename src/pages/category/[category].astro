@@ -1,0 +1,61 @@
+---
+// src/pages/category/[category].astro
+import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ArticleCard from "../../components/ArticleCard.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { siteConfig } from "../../config/site";
+import { categories } from "../../config/taxonomies.mjs";
+
+export async function getStaticPaths() {
+  const posts = await getCollection(
+    "blog",
+    (entry) => entry.data.locale === "en" && !entry.data.draft,
+  );
+
+  return categories
+    .filter((category) =>
+      posts.some((post) => post.data.category === category.slug),
+    )
+    .map((category) => ({
+      params: { category: category.slug },
+      props: {
+        category,
+        posts: posts
+          .filter((post) => post.data.category === category.slug)
+          .sort(
+            (a, b) =>
+              b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+          ),
+      },
+    }));
+}
+
+interface Props {
+  category: (typeof categories)[number];
+  posts: CollectionEntry<"blog">[];
+}
+
+const { category, posts } = Astro.props;
+---
+
+<BaseLayout
+  title={`${category.title} — ${siteConfig.name}`}
+  description={category.description}
+>
+  <div class="container">
+    <Breadcrumbs
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Blog", href: "/blog/" },
+        { label: category.title, href: `/category/${category.slug}/` },
+      ]}
+    />
+    <h1>{category.title}</h1>
+    <p>{category.description}</p>
+    <div class="card-grid section">
+      {posts.map((post) => <ArticleCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>

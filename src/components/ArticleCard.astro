@@ -1,0 +1,35 @@
+---
+// src/components/ArticleCard.astro
+import type { CollectionEntry } from "astro:content";
+import { blogUrlPath, slugFromId } from "../lib/paths.mjs";
+
+interface Props {
+  post: CollectionEntry<"blog">;
+}
+
+const { post } = Astro.props;
+const { data } = post;
+
+const url = blogUrlPath(data.locale, slugFromId(post.id));
+
+const dateLabel = new Intl.DateTimeFormat(data.locale, {
+  dateStyle: "long",
+}).format(data.publishedAt);
+---
+
+<article class="article-card">
+  <a href={url}>
+    <img
+      src={data.featuredImage}
+      alt={data.featuredImageAlt}
+      loading="lazy"
+      width="800"
+      height="450"
+    />
+    <div class="article-card-body">
+      <h3>{data.title}</h3>
+      <p>{data.description}</p>
+      <time datetime={data.publishedAt.toISOString()}>{dateLabel}</time>
+    </div>
+  </a>
+</article>

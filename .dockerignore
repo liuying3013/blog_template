@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+dist
+.astro
+.env
+.env.*
+!.env.example
+npm-debug.log
+README.md
+docs
+compose*.yml
+deployment-plan.md
