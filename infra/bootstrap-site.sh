@@ -5,15 +5,24 @@
 #
 # 用法：
 #   sudo ./bootstrap-site.sh \
-#     --site-id blog-template \
-#     --domain example.com \
+#     --site-id androidphonesblog \
+#     --domain androidphonesblog.com \
 #     --image ghcr.io/liuying3013/blog_template \
 #     --port-base 18100
+#
+# site-id 是这台服务器上该站点的唯一标识，会同时决定：
+#   /etc/nginx/conf.d/10-<id>.conf、/opt/sites/<id>/、
+#   /usr/local/sbin/<id>-deploy、容器名 <id>-blue|green
+# 建议用站点自己的名字（如 androidphonesblog），不要用模板仓库名。
 #
 # --port-base N 会分配：N=内部检查端口，N+1=blue，N+2=green。
 # 多站点各用一个 base（18100 / 18200 / 18300 …），见方案 §29。
 #
 # 幂等：可重复运行以更新脚本与 Nginx 配置，不会动已运行的容器和 active 状态。
+#
+# 卸载（用错 site-id 时清理干净重来）：
+#   sudo ./bootstrap-site.sh --uninstall --site-id 旧的id
+#   加 --purge 连 /opt/sites/<id>/ 的发布历史一起删除。
 
 set -Eeuo pipefail
 
@@ -25,9 +34,11 @@ DOMAIN=""
 IMAGE_NAME=""
 PORT_BASE=""
 DEPLOY_USER="deploy"
+UNINSTALL=0
+PURGE=0
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -38,12 +49,12 @@ while [[ $# -gt 0 ]]; do
     --image)      IMAGE_NAME="${2:-}"; shift 2 ;;
     --port-base)  PORT_BASE="${2:-}"; shift 2 ;;
     --deploy-user) DEPLOY_USER="${2:-}"; shift 2 ;;
+    --uninstall)  UNINSTALL=1; shift ;;
+    --purge)      PURGE=1; shift ;;
     -h|--help)    usage ;;
     *) echo "Unknown option: $1" >&2; usage ;;
   esac
 done
-
-[[ -n "$SITE_ID" && -n "$DOMAIN" && -n "$IMAGE_NAME" && -n "$PORT_BASE" ]] || usage
 
 if [[ $EUID -ne 0 ]]; then
   echo "必须以 root 运行（sudo）。" >&2
@@ -54,6 +65,56 @@ if ! [[ "$SITE_ID" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   echo "site-id 只能包含小写字母、数字和连字符。" >&2
   exit 2
 fi
+
+# ---------- 卸载模式 ----------
+
+if [[ "$UNINSTALL" == "1" ]]; then
+  echo "==> 卸载站点 ${SITE_ID}"
+
+  for color in blue green; do
+    container="${SITE_ID}-${color}"
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$container"; then
+      docker rm -f "$container" >/dev/null && echo "    删除容器 ${container}"
+    fi
+  done
+
+  for f in \
+    "/etc/nginx/conf.d/10-${SITE_ID}.conf" \
+    "/etc/nginx/conf.d/00-${SITE_ID}-active.conf" \
+    "/etc/nginx/site-upstreams/${SITE_ID}-blue.conf" \
+    "/etc/nginx/site-upstreams/${SITE_ID}-green.conf" \
+    "/usr/local/sbin/${SITE_ID}-deploy" \
+    "/usr/local/sbin/${SITE_ID}-switch" \
+    "/usr/local/sbin/${SITE_ID}-rollback" \
+    "/etc/sudoers.d/${SITE_ID}-deploy"
+  do
+    if [[ -e "$f" || -L "$f" ]]; then
+      rm -f "$f" && echo "    删除 ${f}"
+    fi
+  done
+
+  if [[ -d "/opt/sites/${SITE_ID}" ]]; then
+    if [[ "$PURGE" == "1" ]]; then
+      rm -rf "/opt/sites/${SITE_ID}" && echo "    删除 /opt/sites/${SITE_ID}"
+    else
+      echo "    保留 /opt/sites/${SITE_ID}（含发布历史，加 --purge 可删除）"
+    fi
+  fi
+
+  echo
+  if nginx -t; then
+    systemctl reload nginx && echo "==> Nginx 已重载"
+  else
+    echo "==> Nginx 配置仍未通过，请检查其他站点配置。" >&2
+  fi
+
+  echo "卸载完成。"
+  exit 0
+fi
+
+# ---------- 安装模式 ----------
+
+[[ -n "$DOMAIN" && -n "$IMAGE_NAME" && -n "$PORT_BASE" ]] || usage
 
 if ! [[ "$PORT_BASE" =~ ^[0-9]{4,5}$ ]]; then
   echo "port-base 必须是 4-5 位数字。" >&2

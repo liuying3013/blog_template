@@ -60,17 +60,41 @@ sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 
 ```bash
 sudo ./infra/bootstrap-site.sh \
-  --site-id blog-template \
-  --domain example.com \
+  --site-id androidphonesblog \
+  --domain androidphonesblog.com \
   --image ghcr.io/liuying3013/blog_template \
   --port-base 18100
 ```
+
+**`--site-id` 怎么取名很重要**，它同时决定了五处名字：
+
+```text
+/etc/nginx/conf.d/10-<id>.conf
+/opt/sites/<id>/
+/usr/local/sbin/<id>-deploy
+/etc/sudoers.d/<id>-deploy
+容器名 <id>-blue / <id>-green
+```
+
+用**站点自己的名字**（域名去掉 `.com`，如 `androidphonesblog`），
+不要用模板仓库名 `blog-template`——一台服务器上跑多个站时，
+`ls /etc/nginx/conf.d/` 要能一眼看出哪个文件属于哪个站。
+这个值还要和 GitHub 仓库 Variables 里的 `SITE_ID` 保持一致。
 
 这一步会自动生成：部署/回滚/切换脚本、Docker Compose 配置、Nginx 蓝绿配置、
 sudoers 白名单。脚本是幂等的，改了模板可以重复运行。
 
 > **多站点**：每个站点用不同的 `--port-base`（18100 / 18200 / 18300 …），
 > 见方案 §29 的端口分配表。
+
+**取错名字了怎么办**：脚本支持卸载，会删掉该 site-id 的全部文件和容器，
+不影响服务器上其他站点：
+
+```bash
+sudo ./infra/bootstrap-site.sh --uninstall --site-id 旧的id
+```
+
+默认保留 `/opt/sites/<id>/`（含发布历史），加 `--purge` 一并删除。
 
 ### 4. 安装 Cloudflare Origin 证书
 
