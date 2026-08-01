@@ -60,6 +60,32 @@ if ! [[ "$PORT_BASE" =~ ^[0-9]{4,5}$ ]]; then
   exit 2
 fi
 
+# ---------- 域名规范化 ----------
+# 常见误输入：从聊天窗口复制时被转成 Markdown 链接
+# "[www.example.com](https://www.example.com)"，或误传了 www 前缀。
+# 这里统一清洗，清洗不掉的直接拒绝，避免生成一份坏掉的 Nginx 配置。
+
+if [[ "$DOMAIN" == *"["* || "$DOMAIN" == *"]"* || "$DOMAIN" == *"("* ]]; then
+  echo "域名看起来是从 Markdown 链接复制的：$DOMAIN" >&2
+  echo "请只填裸域名，例如：--domain example.com" >&2
+  exit 2
+fi
+
+DOMAIN="${DOMAIN#http://}"
+DOMAIN="${DOMAIN#https://}"
+DOMAIN="${DOMAIN%%/*}"
+
+if [[ "$DOMAIN" == www.* ]]; then
+  DOMAIN="${DOMAIN#www.}"
+  echo "提示：--domain 需要顶级域名，已自动去掉 www. 前缀 → ${DOMAIN}"
+fi
+
+if ! [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+  echo "域名格式不合法：$DOMAIN" >&2
+  echo "应为裸域名，例如：example.com" >&2
+  exit 2
+fi
+
 # GHCR 镜像名必须全小写，否则 docker pull 会失败。
 # 用 tr 而非 ${var,,}，兼容 bash 3.2（便于在 macOS 上自测）。
 IMAGE_NAME_LOWER="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
