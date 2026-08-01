@@ -124,8 +124,36 @@ fi
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
   echo "缺少依赖：${MISSING[*]}" >&2
-  echo "Debian/Ubuntu 安装：apt-get install -y curl jq nginx docker.io docker-compose-plugin" >&2
+  echo >&2
+  echo "Debian/Ubuntu 安装：" >&2
+  echo "  apt-get install -y curl jq nginx" >&2
+  echo >&2
+  echo "Docker 请装官方包（不要用 Ubuntu 的 docker.io，" >&2
+  echo "它依赖的 containerd 与官方源的 containerd.io 冲突）：" >&2
+  echo "  apt-get install -y docker-ce docker-ce-cli containerd.io \\" >&2
+  echo "    docker-buildx-plugin docker-compose-plugin" >&2
   exit 1
+fi
+
+# ---------- HTTP/2 语法适配 ----------
+# Nginx 1.25.1 起 http2 从 listen 参数改为独立指令。
+# Ubuntu 24.04 自带 1.24、22.04 自带 1.18，都要用旧写法，
+# 否则 nginx -t 会直接报 "invalid parameter" 或 "unknown directive"。
+
+NGINX_VERSION="$(nginx -v 2>&1 | sed -n 's|.*nginx/\([0-9.]*\).*|\1|p')"
+
+version_ge() {
+  [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]
+}
+
+if [[ -n "$NGINX_VERSION" ]] && version_ge "$NGINX_VERSION" "1.25.1"; then
+  HTTP2_SUFFIX=""
+  HTTP2_ON_LINE="    http2 on;"
+  echo "==> Nginx ${NGINX_VERSION}：使用 http2 on; 指令"
+else
+  HTTP2_SUFFIX=" http2"
+  HTTP2_ON_LINE=""
+  echo "==> Nginx ${NGINX_VERSION:-未知}：使用 listen ... http2 旧写法"
 fi
 
 # ---------- 端口占用检查 ----------
@@ -152,6 +180,8 @@ render() {
     -e "s|__GREEN_PORT__|${GREEN_PORT}|g" \
     -e "s|__DOMAIN_APEX__|${DOMAIN_APEX}|g" \
     -e "s|__DOMAIN_WWW__|${DOMAIN_WWW}|g" \
+    -e "s|__HTTP2_SUFFIX__|${HTTP2_SUFFIX}|g" \
+    -e "s|__HTTP2_ON_LINE__|${HTTP2_ON_LINE}|g" \
     "$src" > "$dst"
 }
 

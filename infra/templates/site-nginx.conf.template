@@ -1,9 +1,9 @@
 # /etc/nginx/conf.d/10-__SITE_ID__.conf
 # 由 infra/bootstrap-site.sh 生成，请勿手工编辑。
 #
-# 注意：`http2 on;` 需要 Nginx >= 1.25.1。
-# 旧版本（如 Ubuntu 22.04 自带的 1.18）请改用 `listen 443 ssl http2;`
-# 或从 nginx 官方源安装新版。
+# HTTP/2 语法在 Nginx 1.25.1 分界：新版用独立的 `http2 on;`，
+# 旧版（Ubuntu 24.04 自带 1.24、22.04 自带 1.18）用 `listen ... http2`。
+# bootstrap 脚本会检测本机版本后生成对应写法。
 
 server {
     listen 80;
@@ -14,10 +14,9 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-
+    listen 443 ssl__HTTP2_SUFFIX__;
+    listen [::]:443 ssl__HTTP2_SUFFIX__;
+__HTTP2_ON_LINE__
     server_name __DOMAIN_WWW__;
 
     ssl_certificate

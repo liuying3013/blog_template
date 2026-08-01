@@ -24,9 +24,25 @@
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y curl jq nginx docker.io docker-compose-plugin
+sudo apt-get install -y curl jq nginx
+```
+
+Docker 装官方包。**不要用 Ubuntu 的 `docker.io`**——它依赖 Ubuntu 版
+`containerd`，与 Docker 官方源提供的 `containerd.io` 互斥，同时存在会报
+`containerd.io : Conflicts: containerd`：
+
+```bash
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
 sudo systemctl enable --now docker nginx
 ```
+
+> 先用 `docker --version && docker compose version` 确认是否已装好，
+> 很多云厂商的镜像已经预装了 Docker 官方版。
+
+**关于 Nginx 版本**：`http2 on;` 指令需要 Nginx ≥ 1.25.1，而 Ubuntu 24.04
+自带 1.24、22.04 自带 1.18。bootstrap 脚本会自动检测版本并生成对应语法，
+用发行版自带的 Nginx 即可，无需换源。
 
 ### 2. 创建部署用户
 
