@@ -13,7 +13,11 @@ permissions:
   contents: read
 
 env:
-  IMAGE_NAME: ghcr.io/your-org/example-site
+  # GHCR 镜像名必须全小写。从模板复制新站点时改这里。
+  IMAGE_NAME: ghcr.io/liuying3013/blog_template
+  # 服务器上的站点标识，决定部署脚本名与 /opt/sites/ 下的目录名。
+  # 在仓库 Variables 里设置 SITE_ID 可覆盖（多站点复用同一份工作流）。
+  SITE_ID: ${{ vars.SITE_ID || 'blog-template' }}
 
 jobs:
   validate:
@@ -119,8 +123,9 @@ jobs:
     environment:
       name: production
       url: ${{ vars.SITE_URL }}
+    # concurrency 不支持 env 上下文，这里直接用 vars（与顶部 SITE_ID 保持一致）
     concurrency:
-      group: example-site-production
+      group: ${{ vars.SITE_ID || 'blog-template' }}-production
       cancel-in-progress: false
     permissions:
       contents: read
@@ -160,7 +165,7 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -p "$PROD_PORT" \
             "${PROD_USER}@${PROD_HOST}" \
-            "sudo /usr/local/sbin/example-site-deploy '${IMAGE_REF}' '${BUILD_SHA}'"
+            "sudo /usr/local/sbin/${SITE_ID}-deploy '${IMAGE_REF}' '${BUILD_SHA}'"
 
       - name: Purge Cloudflare cache
         env:

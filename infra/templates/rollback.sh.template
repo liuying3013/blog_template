@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/__SITE_ID__-rollback
+# 由 infra/bootstrap-site.sh 生成，请勿手工编辑。
+#
+# 回滚只切换 Nginx upstream，不重新拉取镜像、不重新构建。
+
+set -Eeuo pipefail
+
+SITE_ID="__SITE_ID__"
+STATE_DIR="/opt/sites/${SITE_ID}/state"
+
+BLUE_PORT="__BLUE_PORT__"
+GREEN_PORT="__GREEN_PORT__"
+
+ACTIVE="$(cat "${STATE_DIR}/active" 2>/dev/null || true)"
+
+case "$ACTIVE" in
+  blue)
+    TARGET="green"
+    TARGET_PORT="$GREEN_PORT"
+    ;;
+  green)
+    TARGET="blue"
+    TARGET_PORT="$BLUE_PORT"
+    ;;
+  *)
+    echo "Unknown active color."
+    exit 1
+    ;;
+esac
+
+# 回滚目标必须是健康的，否则拒绝切换
+curl \
+  --fail \
+  --silent \
+  --show-error \
+  "http://127.0.0.1:${TARGET_PORT}/healthz" \
+  >/dev/null
+
+"/usr/local/sbin/${SITE_ID}-switch" "$TARGET"
+
+printf '%s\n' "$TARGET" \
+  > "${STATE_DIR}/active"
+
+printf '%s | rollback | %s\n' \
+  "$(date --iso-8601=seconds)" \
+  "$TARGET" \
+  >> "${STATE_DIR}/releases.log"
+
+echo "Rolled back to ${TARGET}."

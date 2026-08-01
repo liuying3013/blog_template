@@ -1,0 +1,10 @@
+# /etc/nginx/site-upstreams/__SITE_ID__-__COLOR__.conf
+# 由 infra/bootstrap-site.sh 生成，请勿手工编辑。
+#
+# 活动颜色由 /etc/nginx/conf.d/00-__SITE_ID__-active.conf 软链接决定，
+# 切换脚本负责改软链并 reload。
+
+upstream __SITE_ID_UNDERSCORE___active {
+    server 127.0.0.1:__COLOR_PORT__;
+    keepalive 32;
+}

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/__SITE_ID__-switch
+# 由 infra/bootstrap-site.sh 生成，请勿手工编辑。
+
+set -Eeuo pipefail
+
+SITE_ID="__SITE_ID__"
+COLOR="${1:-}"
+
+ACTIVE_LINK="/etc/nginx/conf.d/00-${SITE_ID}-active.conf"
+
+case "$COLOR" in
+  blue)
+    TARGET="/etc/nginx/site-upstreams/${SITE_ID}-blue.conf"
+    ;;
+  green)
+    TARGET="/etc/nginx/site-upstreams/${SITE_ID}-green.conf"
+    ;;
+  *)
+    echo "Usage: ${SITE_ID}-switch blue|green"
+    exit 2
+    ;;
+esac
+
+OLD_TARGET="$(readlink -f "$ACTIVE_LINK" 2>/dev/null || true)"
+
+ln -sfn "$TARGET" "$ACTIVE_LINK"
+
+if ! nginx -t; then
+  echo "Nginx configuration validation failed."
+
+  if [[ -n "$OLD_TARGET" ]]; then
+    ln -sfn "$OLD_TARGET" "$ACTIVE_LINK"
+  else
+    rm -f "$ACTIVE_LINK"
+  fi
+
+  exit 1
+fi
+
+if ! systemctl reload nginx; then
+  echo "Nginx reload failed."
+
+  if [[ -n "$OLD_TARGET" ]]; then
+    ln -sfn "$OLD_TARGET" "$ACTIVE_LINK"
+    nginx -t
+    systemctl reload nginx || true
+  fi
+
+  exit 1
+fi
+
+echo "Traffic switched to ${COLOR}."

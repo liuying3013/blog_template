@@ -1,0 +1,33 @@
+# /opt/sites/__SITE_ID__/compose.yml
+# 由 infra/bootstrap-site.sh 生成，请勿手工编辑。
+#
+# IMAGE_REF / SITE_ID / COLOR / HOST_PORT 由部署脚本通过 --env-file 传入。
+
+services:
+  site:
+    image: ${IMAGE_REF}
+    container_name: ${SITE_ID}-${COLOR}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      # nginx-unprivileged 的 pid 文件与临时目录都在 /tmp，
+      # 只读根文件系统下必须挂这一个 tmpfs。
+      - /tmp:size=32m,mode=1777
+    ports:
+      - "127.0.0.1:${HOST_PORT}:8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 128m
+    cpus: 0.50
+    # 健康检查继承镜像内的 HEALTHCHECK 定义（见 Dockerfile），
+    # 此处不重复定义，避免两处配置漂移。
+    stop_grace_period: 15s
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
