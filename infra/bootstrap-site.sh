@@ -218,17 +218,56 @@ else
 fi
 
 # ---------- 端口占用检查 ----------
+#
+# 重跑 bootstrap 时这三个端口本来就被"自己人"占着，必须放行，
+# 否则脚本声称的幂等性不成立：
+#   CHECK_PORT  由宿主机 nginx 监听——这正是本站配置自带的内部检查端口，
+#               站点装好后它一定在监听（早期版本漏了这条，导致装好后
+#               无法重跑，且中途退出会留下缺失的站点配置）
+#   BLUE/GREEN  由本站自己的容器监听
+#
+# 只有被无关进程占用时才拒绝。
 
-for port in "$CHECK_PORT" "$BLUE_PORT" "$GREEN_PORT"; do
-  if ss -ltn "sport = :${port}" 2>/dev/null | grep -q LISTEN; then
-    # 已被本站点自己的容器占用是正常的（重复运行 bootstrap）
-    if ! docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
-      | grep -q "^${SITE_ID}-.*:${port}->"; then
-      echo "端口 ${port} 已被其他进程占用，请换一个 --port-base。" >&2
-      exit 1
-    fi
-  fi
-done
+port_holder() {
+  # 不用 ss -H：旧版 iproute2 不支持，报错会被吞成"端口空闲"的误判。
+  # 需要 root 才能看到 users:(...) 字段，脚本开头已强制 root。
+  local out
+  out="$(ss -ltnp "sport = :$1" 2>/dev/null | grep LISTEN || true)"
+  [[ -z "$out" ]] && return 0
+  # users:(("nginx",pid=123,fd=6)) → nginx
+  printf '%s' "$out" | grep -oE 'users:\(\("[^"]+"' | head -1 \
+    | sed -E 's/.*"(.*)"/\1/' || true
+}
+
+site_container_holds_port() {
+  docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null \
+    | grep -qE "^${SITE_ID}-(blue|green) .*:$1->" || return 1
+}
+
+check_port() {
+  local port="$1" role="$2" holder
+  holder="$(port_holder "$port")"
+
+  [[ -z "$holder" ]] && return 0
+
+  case "$role" in
+    nginx-internal)
+      # 宿主机 nginx 监听内部检查端口属于设计如此
+      [[ "$holder" == "nginx" ]] && return 0
+      ;;
+    container)
+      site_container_holds_port "$port" && return 0
+      ;;
+  esac
+
+  echo "端口 ${port} 被 ${holder} 占用（不属于本站点），请换一个 --port-base。" >&2
+  echo "查看占用者：ss -ltnp \"sport = :${port}\"" >&2
+  return 1
+}
+
+check_port "$CHECK_PORT" nginx-internal || exit 1
+check_port "$BLUE_PORT" container || exit 1
+check_port "$GREEN_PORT" container || exit 1
 
 render() {
   local src="$1" dst="$2"
@@ -328,24 +367,58 @@ else
   exit 1
 fi
 
+# ---------- 前置条件体检 ----------
+
+CERT_PEM="/etc/ssl/cloudflare/${SITE_ID}-origin.pem"
+CERT_KEY="/etc/ssl/cloudflare/${SITE_ID}-origin-key.pem"
+
+TODO=()
+
+if [[ ! -s "$CERT_PEM" || ! -s "$CERT_KEY" ]]; then
+  TODO+=("安装 Cloudflare Origin Certificate：
+       ${CERT_PEM}
+       ${CERT_KEY}   （chmod 600）")
+fi
+
+# GHCR 私有镜像必须先登录，否则部署时 docker compose pull 会失败。
+# 镜像仓库是 public 时不需要，所以这里只提示不阻断。
+if ! jq -e '.auths | has("ghcr.io")' /root/.docker/config.json \
+  >/dev/null 2>&1; then
+  TODO+=("root 尚未登录 ghcr.io。镜像仓库若为 private，部署会在
+       docker compose pull 阶段失败。登录（PAT 需 read:packages 权限）：
+       echo \$PAT | docker login ghcr.io -u <github用户名> --password-stdin")
+fi
+
+if [[ ! -s "/home/${DEPLOY_USER}/.ssh/authorized_keys" ]] \
+  && [[ "$DEPLOY_USER" != "root" || ! -s "/root/.ssh/authorized_keys" ]]; then
+  TODO+=("把 GitHub Actions 的部署公钥加入 ${DEPLOY_USER} 的 authorized_keys")
+fi
+
+TODO+=("在 GitHub 仓库配置 Variables（SITE_ID=${SITE_ID}）与
+       production Environment Secrets，push 到 main 触发首次部署")
+
 # ---------- Nginx 配置校验 ----------
 
 echo
 if nginx -t; then
   echo "==> Nginx 配置校验通过"
-  echo
-  echo "注意：证书文件尚未安装时 nginx reload 会失败，属正常。"
-  echo "     安装 Cloudflare Origin Certificate 后再 reload："
-  echo "       /etc/ssl/cloudflare/${SITE_ID}-origin.pem"
-  echo "       /etc/ssl/cloudflare/${SITE_ID}-origin-key.pem"
+  if [[ -s "$CERT_PEM" && -s "$CERT_KEY" ]]; then
+    systemctl reload nginx && echo "==> Nginx 已重载"
+  fi
 else
-  echo "==> Nginx 配置校验未通过（通常是证书文件缺失），装好证书后重跑 nginx -t" >&2
+  echo "==> Nginx 配置校验未通过" >&2
+  if [[ ! -s "$CERT_PEM" ]]; then
+    echo "    证书尚未安装，这是预期内的；装好后重跑 nginx -t 即可。" >&2
+  fi
+  echo "    注意：在证书装好之前，nginx 无法重启（重启会失败并影响" >&2
+  echo "    本机其他站点）。若需长时间搁置，先把配置移走：" >&2
+  echo "      mv /etc/nginx/conf.d/10-${SITE_ID}.conf /root/ && nginx -t" >&2
 fi
 
 echo
-echo "完成。后续步骤："
-echo "  1. 安装 Cloudflare Origin Certificate 到上述路径（key 权限 600）"
-echo "  2. systemctl reload nginx"
-echo "  3. root 执行一次 docker login ghcr.io（拉私有镜像用）"
-echo "  4. 把 GitHub Actions 的公钥加入 ${DEPLOY_USER} 的 ~/.ssh/authorized_keys"
-echo "  5. 在 GitHub 配置 Variables 与 Environment Secrets，push 到 main 触发首次部署"
+echo "完成。剩余步骤："
+i=1
+for item in "${TODO[@]}"; do
+  echo "  ${i}. ${item}"
+  i=$((i + 1))
+done

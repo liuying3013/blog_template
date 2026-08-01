@@ -95,6 +95,14 @@ sudo ./infra/bootstrap-site.sh --uninstall --site-id 旧的id
 ```
 
 默认保留 `/opt/sites/<id>/`（含发布历史），加 `--purge` 一并删除。
+卸载结束会自动 `nginx -t` 并 reload——**这一步不能省**，否则旧的 nginx
+worker 还占着端口不退出，紧接着重装会被端口检测挡下。
+
+### 重跑 bootstrap 是安全的
+
+站点跑起来之后再次执行 bootstrap（比如改了模板、换了部署用户）不会出问题：
+端口检测会识别出 `CHECK_PORT` 上的宿主机 nginx 和蓝绿端口上的本站容器，
+放行自己人、只拦无关进程；活动颜色和运行中的容器也不会被动。
 
 ### 4. 安装 Cloudflare Origin 证书
 
@@ -264,6 +272,39 @@ ssh deploy@服务器IP "sudo /usr/local/sbin/blog-template-rollback"
 ```bash
 ssh deploy@服务器IP "cat /opt/sites/blog-template/state/releases.log"
 ```
+
+---
+
+## 排错备忘
+
+实际上线过程中踩过的坑，按出现频率排列。
+
+**`nginx -t` 一定要加 sudo。** 普通用户跑会因为读不到别的站点的证书私钥而
+报一堆无关错误，看起来像是你的配置有问题，其实只是权限不足的误报。
+
+**部署验证返回 502 是正常的。** 证书和 Nginx 配好之后、应用容器还没部署上去
+之前，`/healthz` 会返回 502——这说明 Nginx 已经在正确地往上游转发了，
+只是上游还没起来。首次部署跑完就会变成 `ok`。
+
+**开发机和生产服务器是同一台时**，GitHub Actions 依然是 SSH 连回这台机器执行
+部署，流程不变。注意 `PROD_HOST` 要填这台机器的公网 IP，不能填 `127.0.0.1`
+（Actions 跑在 GitHub 的机器上）。
+
+**GHCR 仓库设为 private 时**，服务器必须先 `docker login ghcr.io`，否则部署会
+卡在 `docker compose pull`。bootstrap 跑完会检测并提示。忘了也不致命——补登录
+后在 GitHub Actions 页面点 Re-run 即可。
+
+**这台机器第一次用 git 提交**会报 `Author identity unknown`，先设置身份
+（建议只设仓库级，不加 `--global`）：
+
+```bash
+git config user.name "你的名字" && git config user.email "你的邮箱"
+```
+
+**私钥怎么传递。** Cloudflare Origin Certificate 的私钥只用于这一个站点、
+影响面有限。但 GitHub Actions 用的 SSH 私钥往往还兼作这台机器推代码的身份，
+暴露面大得多——它应该由你自己在终端 `cat` 出来直接粘进 GitHub Secrets 页面，
+不要经过任何中间环节。
 
 ---
 
