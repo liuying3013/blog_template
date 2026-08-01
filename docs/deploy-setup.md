@@ -4,6 +4,7 @@
 按顺序做，每段末尾都有验证方法。
 
 完整原理见 [deployment-plan.md](../deployment-plan.md)，本文只讲操作步骤。
+**卡住了看 [FAQ.md](FAQ.md)**，按症状查，都是真实踩过的坑。
 
 ---
 
@@ -118,14 +119,30 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### 5. 让服务器能拉取镜像
 
-GHCR 上的私有镜像需要先登录。用一个只有 `read:packages` 权限的
-Classic PAT（GitHub → Settings → Developer settings → Personal access tokens）：
+GHCR 上的私有镜像需要先登录。
 
-```bash
-echo "你的PAT" | sudo docker login ghcr.io -u liuying3013 --password-stdin
+> ⚠️ **必须用 Classic token（`ghp_` 开头），不能用 Fine-grained token
+> （`github_pat_` 开头）。** GHCR 对细粒度令牌的包权限支持不可靠，会出现
+> `docker login` 提示 Login Succeeded、但拉镜像时 403 Forbidden 的情况，
+> 而且登录环节完全看不出异常，极难自己排查。
+
+```text
+Settings → Developer settings → Personal access tokens → Tokens (classic)
+→ Generate new token (classic) → 只勾 read:packages
 ```
 
-> 如果把 GHCR 包设为 public，这一步可以跳过。
+```bash
+echo "ghp_你的token" | sudo docker login ghcr.io -u liuying3013 --password-stdin
+```
+
+必须用 **root** 身份登录——部署脚本以 root 运行，读不到普通用户的凭证。
+确认登录成功：
+
+```bash
+sudo jq '.auths | keys' /root/.docker/config.json
+```
+
+> 如果把 GHCR 包设为 public，这一步可以完全跳过。
 
 ### 6. 配置防火墙
 
@@ -185,6 +202,16 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables
 ### 9. 配置 Environment Secrets
 
 同一页面 → Environments → 新建 `production` → Add secret。
+
+> ⚠️ **Environment 名字必须和 workflow 里的完全一致（区分大小写）。**
+> 名字对不上时，该 Environment 下的所有 Secrets 会静默解析成空字符串，
+> 报错以 `Bad port ''` 的形式出现在很后面，极难定位。
+>
+> 如果你建的不叫 `production`（比如叫 `PROD`），**不用重建**——
+> 在上一步的 Variables 里加一个 `DEPLOY_ENVIRONMENT` = 实际名字即可。
+>
+> workflow 第一步会主动校验并打印实际使用的 Environment 名字。
+
 这些是真机密，**不会**出现在网页里：
 
 | 名称 | 值 |
@@ -247,12 +274,23 @@ git push
 构建镜像 → 推送 GHCR → SSH 部署到 blue → 健康检查 → 切换 Nginx →
 清 Cloudflare 缓存 → 公网健康检查。
 
-**验证上线成功**：
+**验证上线成功**。在服务器上跑体检脚本，六个环节逐项检查，不依赖 GitHub 网页：
 
 ```bash
-curl https://www.example.com/healthz              # 返回 ok
-curl https://www.example.com/_meta/build.json     # revision 等于最新 commit SHA
-curl -I https://www.example.com/blog              # 301 跳到 /blog/
+./infra/verify-site.sh --site-id androidphonesblog --domain androidphonesblog.com
+```
+
+要确认线上跑的**确实是最新代码**（容器健康不等于版本对得上，旧版本容器一样
+健康），带上期望的 commit：
+
+```bash
+./infra/verify-site.sh --site-id androidphonesblog --domain androidphonesblog.com --expect-revision $(git rev-parse HEAD)
+```
+
+公网侧再确认一次：
+
+```bash
+curl -sI https://www.example.com/blog     # 301 跳到 /blog/，响应头有 cf-cache-status
 ```
 
 ---

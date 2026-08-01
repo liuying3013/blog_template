@@ -120,8 +120,12 @@ jobs:
     needs:
       - build_image
     runs-on: ubuntu-latest
+    # Environment 名字必须和你在 GitHub 上实际建的那个完全一致（区分大小写），
+    # 否则该 Environment 下的 Secrets 全部解析为空字符串，
+    # 报错会以 "Bad port ''" 之类的形式出现在很后面，很难定位。
+    # 建的不叫 production 时，设仓库变量 DEPLOY_ENVIRONMENT 即可，无需重建。
     environment:
-      name: production
+      name: ${{ vars.DEPLOY_ENVIRONMENT || 'production' }}
       url: ${{ vars.SITE_URL }}
     # concurrency 不支持 env 上下文，这里直接用 vars（与顶部 SITE_ID 保持一致）
     concurrency:
@@ -130,6 +134,36 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check required secrets
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          RESOLVED_ENVIRONMENT: ${{ vars.DEPLOY_ENVIRONMENT || 'production' }}
+        run: |
+          MISSING=""
+          for name in PROD_HOST PROD_PORT PROD_USER \
+                      PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS; do
+            [ -n "${!name}" ] || MISSING="${MISSING} ${name}"
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::缺少 Secrets:${MISSING}"
+            echo ""
+            echo "本次使用的 Environment 名字是：${RESOLVED_ENVIRONMENT}"
+            echo ""
+            echo "常见原因："
+            echo "  1. GitHub 上建的 Environment 不叫这个名字（区分大小写）。"
+            echo "     设仓库变量 DEPLOY_ENVIRONMENT 为实际名字即可，无需重建。"
+            echo "  2. Secrets 建在了 Repository 级别，而不是该 Environment 下。"
+            echo "  3. Secret 名字拼写不一致。"
+            exit 1
+          fi
+
+          echo "全部必需 Secrets 已就位（Environment: ${RESOLVED_ENVIRONMENT}）"
+
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY:
